@@ -1,5 +1,5 @@
 # HotkeyParallels
-Tool to compare inside Maya different Maya hotkey files' content
+Tool to compare in Maya different Maya hotkey files
 
 Last version: 1.0.0 - tested in Maya 2024
 
