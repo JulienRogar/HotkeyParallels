@@ -1153,7 +1153,6 @@ class ParallelsCore():
     files_columnsCount = 5 #Not the exact count of files! Extra two when over five
     files_removedCount = 0
     files_filesCount = 0
-    windowWH=(1280,750)
 
     #--- Functions ---
     def clean_HotkeysChunk(data=''): #Clean an extracted hotkeysChunk because Maya sometimes mixes hotkey lines and other lines
