@@ -1,8 +1,7 @@
-import os
 import maya.cmds as cmds # type: ignore
 
-#Hotkey Parallels
-# Maya 2024 | 1.0.0
+# Hotkey Parallels
+# Maya 2024 | 1.0.1
 # Julien Rogar ( https://github.com/JulienRogar/HotkeyParallels )
 
 #--- ---
@@ -56,31 +55,40 @@ def buildUI_TopIcon( image='', height=30, width=30, parent='', command='', annot
         )
 
 def buildUI_ScrollArea(rebuild=False): #Build the scroll area
-    if rebuild: #To be called when it already exists, no need yet to split on another function
+    if rebuild:
         cmds.deleteUI(BuildWindow.scrollAreaLayout)
-        BuildWindow.scrollArea_AdaptH = False
-        BuildWindow.scrollArea_AdaptV = False
-        if BuildWindow.windowSizable: #If window resizable, reset it to default size too
-            cmds.window(BuildWindow.windowName, edit=True, widthHeight=BuildWindow.windowSize)
-    BuildWindow.scrollAreaLayout = cmds.scrollLayout(
-        backgroundColor=ThemeColor.scrllAreaBack,
-        height=640,
+    scrollLyt = cmds.scrollLayout(
+        height=188,
         borderVisible=False,
         childResizable=False,
         panEnabled=True,
+        resizeCommand='updateUI_ScrollArea()',
+        backgroundColor=ThemeColor.scrllArea,
         parent=BuildWindow.mainLyt
     )
+    BuildWindow.scrollAreaLayout = scrollLyt
     info_subLyt = cmds.rowLayout(
-        backgroundColor=ThemeColor.scrllArea,
-        height=BuildWindow.elementsLyt_defHeight, width=BuildWindow.elementsLyt_defWidth,
+        height=636, width=1246,
         numberOfColumns=ParallelsCore.files_columnsCount
     )
     BuildWindow.elementsLayout = info_subLyt
     
     BuildWindow.actionsLayout = cmds.columnLayout(
+        height=630, width=240,
         backgroundColor=ThemeColor.acColumn,
-        height=BuildWindow.actionsLyt_defHeight, width=BuildWindow.actionsLyt_defWidth,
         parent=info_subLyt
+    )
+
+    t_topLyt = BuildWindow.topLyt
+    cmds.formLayout( #Update the form layout to manage the size of the top and scroll layouts' size
+        BuildWindow.mainLyt, edit=True,
+        attachForm=(
+            (t_topLyt, 'top', 15), (t_topLyt, 'left', 15), (t_topLyt, 'right', 15),
+            (scrollLyt, 'left', 15), (scrollLyt, 'right', 15), (scrollLyt, 'bottom', 15)
+        ),
+        attachControl=(
+            (scrollLyt, 'top', 10, t_topLyt)
+        )
     )
 
 def buildUI_ActionsFiles(progress=False): #Build actions' and files' UIs and update scroll area
@@ -90,7 +98,7 @@ def buildUI_ActionsFiles(progress=False): #Build actions' and files' UIs and upd
     buildUI_Actions( ParallelsCore.files_actions, 238, BuildWindow.actionsLayout )
     #Build file column UI for each file
     fileIndex=0
-    filesIdxCount=len(ParallelsCore.files_idx)
+    filesIdxCount=ParallelsCore.files_filesCount
     for file in ParallelsCore.files_idx: #For among the idx list to have index 0 be main file
         if progress:
             ProgressWindow.update('Building UI: File',fileIndex-1,filesIdxCount)
@@ -137,10 +145,10 @@ def buildUI_Actions( actions=[], width=10, parent=None): #Build action(s) on the
 
 def buildUI_File( label='File', data={}, width=10, parent=None, fileIndex=-1 ): #Build file column
     fileLyt = cmds.columnLayout(
-        backgroundColor=ThemeColor.fileColumn,
         height=630, width=240,
         columnAlign='center',
         margins=10,
+        backgroundColor=ThemeColor.fileColumn,
         parent=parent
     )
     #File title
@@ -151,17 +159,12 @@ def buildUI_File( label='File', data={}, width=10, parent=None, fileIndex=-1 ): 
         height=31,
         width=width,
         dragCallback="None", #No action to do but will be draggeable
-        parent=fileLyt,
-        backgroundColor=ThemeColor.fileName
+        backgroundColor=ThemeColor.fileName,
+        parent=fileLyt
     )
     cmds.separator( height=13, width=width, style='none', parent=fileLyt )
     #Keys
     keyWidth = width+4
-    suffix = '_HKData'
-    mod_Ctrl = 'Ctrl+'
-    mod_Shift = 'Shift+'
-    mod_Alt = 'Alt+'
-    mod_None = ''
     actions = ParallelsCore.files_actions
     isMain = True if fileIndex==0 else False
     doRmvHide = True if BuildWindow.hideRemoved else False
@@ -288,8 +291,8 @@ def buildUI_Key( width=10, parent=None, key='Key', onPress=False, onRelease=Fals
         rowSpacing=10,
         margins=5,
         columnOffset=('left', 5),
-        parent=borderLyt,
-        backgroundColor=ThemeColor.keyBack
+        backgroundColor=ThemeColor.keyBack,
+        parent=borderLyt
     )
     if cstmDisplay: #Key UI only contains specific status display
         if status==3:
@@ -388,79 +391,46 @@ def buildUI_KeyExtra( label='', value=False, width=20, parent=None ): #Create ch
 def updateUI_ScrollArea(): #Update the size of the scroll area UI to match the children or the minimum default size
     #Height
     actionsAmount = len(ParallelsCore.files_actions)-ParallelsCore.files_removedCount if BuildWindow.hideRemoved else len(ParallelsCore.files_actions) #Do not count the removed_ actions if they are hidden
-    elementHeight = BuildWindow.elementsLyt_defHeight
-    childrenHeight = BuildWindow.actionsLyt_defHeight
-    if actionsAmount <= 4 or actionsAmount==None: #Minimum default size
-        #ElementsLayout
-        cmds.rowLayout( BuildWindow.elementsLayout, edit=True, height=elementHeight )
-        #Children columns
-        children = cmds.rowLayout( BuildWindow.elementsLayout, query=True, childArray=True )
-        for child in children:
-            cmds.columnLayout( child, edit=True, height=childrenHeight )
-    else: #Bigger size
-        t_elementHeight = int( elementHeight + ((actionsAmount-4.55) * 124) ) #12+2+8+102 -> 124
-        t_childrenHeight = int( childrenHeight + ((actionsAmount-4.55) * 124) ) #12+2+8+102 -> 124
-        #ElementsLayout
-        cmds.rowLayout( BuildWindow.elementsLayout, edit=True, height=t_elementHeight )
-        #Children columns
-        children = cmds.rowLayout( BuildWindow.elementsLayout, query=True, childArray=True )
-        for child in children:
-            cmds.columnLayout( child, edit=True, height=t_childrenHeight )
-    
-    #Width
-    filesAmount = len(ParallelsCore.files_idx)
-    elementWidth = BuildWindow.elementsLyt_defWidth
-    childrenWidth = BuildWindow.actionsLyt_defWidth
-    if filesAmount <=4 or filesAmount==None: #Minimum default size
-        #ElementsLayout
-        cmds.rowLayout( BuildWindow.elementsLayout, edit=True, width=elementWidth )
-        #Children columns
-        children = cmds.rowLayout( BuildWindow.elementsLayout, query=True, childArray=True )
-        for child in children:
-            cmds.columnLayout( child, edit=True, width=childrenWidth )
-    else: #Bigger size
-        t_elementWidth = int( (elementWidth-33) + ((filesAmount-4) * 241.8) ) #240+1.8 -> 241.8
-        t_childrenWidth = int( (elementWidth-33) + ((filesAmount-4) * 241.8) ) #240+1.8 -> 241.8
-        #ElementsLayout
-        cmds.rowLayout( BuildWindow.elementsLayout, edit=True, width=t_elementWidth )
-        #Children columns
-        cmds.rowLayout( BuildWindow.elementsLayout, edit=True, width=t_childrenWidth )
-    
-    #Change the scoll area's width/height according to if there will be or no more be scrollbar(s)
-    fixedH=-1
-    fixedW=-1
-    adaptChange=False
-    if filesAmount > 4 and BuildWindow.scrollArea_AdaptH == False: #Will have horizontal scrollbar added
-        fixedH = cmds.scrollLayout( BuildWindow.scrollAreaLayout, query=True, height=True ) + 12 #12 is the horizontal scroll bar's height
-        BuildWindow.scrollArea_AdaptH=True
-        adaptChange=True
-    elif filesAmount <= 4 and BuildWindow.scrollArea_AdaptH: #No more horizontal scorllbar
-        fixedH = cmds.scrollLayout( BuildWindow.scrollAreaLayout, query=True, height=True ) - 12
-        BuildWindow.scrollArea_AdaptH=False
-        adaptChange=True
-    if actionsAmount > 4 and BuildWindow.scrollArea_AdaptV == False: #Will have vertical scrollbar added
-        fixedW = cmds.scrollLayout( BuildWindow.scrollAreaLayout, query=True, width=True ) + 12
-        BuildWindow.scrollArea_AdaptV=True
-        adaptChange=True
-    elif actionsAmount <= 4 and BuildWindow.scrollArea_AdaptV: #No more vertical scrollbar
-        fixedW = cmds.scrollLayout( BuildWindow.scrollAreaLayout, query=True, width=True ) - 12
-        BuildWindow.scrollArea_AdaptV=False
-        adaptChange=True
+    scrllH = cmds.scrollLayout( BuildWindow.scrollAreaLayout, query=True, height=True )
+    elementHeight=None
+    if actionsAmount > 4: #4 is because of window's default size, if higher just count the scrollArea's height with margins + height added by actions + difference between the default scrollArea height once updated by above formLayout and current scrollArea height
+        elementHeight = int( (scrllH-6) + ((actionsAmount-4.55) * 124) + (640-scrllH) ) #12+2+8+102 -> 124
+    elif actionsAmount >= 1: #If still actions, the height for one action + the height added by each action after the first
+        elementHeight = int( 188 + ((actionsAmount-1 if actionsAmount>1 else 0) * 124) ) #20+31+13+12+2+8+102 -> 188 ; #12+2+8+102 -> 124
+    else: #Just the height of the scrollArea minus the margins
+        elementHeight = (scrllH-6)
 
-    if adaptChange: #If any adaptation change is needed
-        if fixedH != -1 and fixedW != -1:
-            cmds.scrollLayout( BuildWindow.scrollAreaLayout, edit=True, height=fixedH, width=fixedW ) #Note: Maya seems to force a limit to the width if both scrollbars are visible, cancelling the extra 12 on width not matter how it's done. But it will still be tried
-        elif fixedH != -1:
-            cmds.scrollLayout( BuildWindow.scrollAreaLayout, edit=True, height=fixedH )
-        elif fixedW != -1:
-            cmds.scrollLayout( BuildWindow.scrollAreaLayout, edit=True, width=fixedW )
+    #Width
+    fileCount = ParallelsCore.files_filesCount
+    elementWidth = 243 + (240 * (fileCount if fileCount > 0 else 1)) + (2*fileCount) #240 (action column width) + 3 (minimum margins with action and one file column) -> 243 ; +2 as margin for each file
+    
+    #Set height for children columns before so when window size gets increased there is no quick vertical adjustement of them in the parent before they get their size updated
+    children = cmds.rowLayout( BuildWindow.elementsLayout, query=True, childArray=True )
+    for child in children:
+        cmds.columnLayout( child, edit=True, height=elementHeight )
+    #cmds.rowLayout( BuildWindow.elementsLayout, edit=True, height=elementHeight, width=elementWidth )
+    cmds.rowLayout( BuildWindow.elementsLayout, edit=True, height=elementHeight, width=elementWidth )
+    
+    #Set scrollLayout's size to the minimum size for when there is one action and one file, Maya will directly get the parent formLayout to resize the scrollLayout but it should keep this as the minimum size for the window's resizing
+    minHeight=194
+    minWidth=489
+    if fileCount>1: #More columns than minimum size
+        minHeight=206 #+12 to include the horizontal scrollBar
+    if BuildWindow.hideRemoved and actionsAmount-ParallelsCore.files_removedCount>1 or actionsAmount>1: #Hide Removed and more than one non-Removed action or don't hide Removed and more than one action
+        minWidth=501 #+12 to include the vertical scrollBar
+    cmds.scrollLayout( BuildWindow.scrollAreaLayout, edit=True, height=minHeight, width=minWidth )
 
 def buildUI_RefreshUIConfirm(): #Stop scroll layout and put a UI to confirm refresh (Direct refresh called even indirectly from a UI control in UI that will be deleted would cause a Maya crash)
     if BuildWindow.refreshLayout != None:
         return
-    cmds.scrollLayout( BuildWindow.scrollAreaLayout, edit=True, manage=False ) #Disable scroll layout
+    cmds.rowLayout( BuildWindow.elementsLayout, edit=True, manage=False ) #When 5 or more files are imported directly, Maya keeps scrollLayout and actionLayout visible for some reason so directly unmanage the elementsLayout
+    cmds.scrollLayout( BuildWindow.scrollAreaLayout, edit=True, backgroundColor=ThemeColor.mainArea ) #And make the scrollLayout's background color same as mainArea's
+    rfrshH = 300
+    scrllH = cmds.scrollLayout( BuildWindow.scrollAreaLayout, query=True, height=True )-2
+    if scrllH < rfrshH: #If window is sized in a way scrollLayout's height is smaller than the aimed height for the refresh confirmation layout
+        rfrshH = scrllH #Set the refresh confirmation's height same as scrollLayout's so the window doesn't get sized up by the confirmation UI
     refreshLayout = cmds.columnLayout(
-        height=300,
+        height=rfrshH,
         adjustableColumn=True,
         parent=BuildWindow.mainLyt
     )
@@ -473,18 +443,49 @@ def buildUI_RefreshUIConfirm(): #Stop scroll layout and put a UI to confirm refr
     )
     cmds.symbolButton(
         image='refresh.png',
-        height=250,
+        height=rfrshH-50,
         command='refreshUI()',
         enableKeyboardFocus=True,
         backgroundColor=ThemeColor.Bttn,
         parent=refreshLayout
     )
+    cmds.formLayout(
+        BuildWindow.mainLyt, edit=True,
+        attachForm=(
+            (refreshLayout, 'left', 15), (refreshLayout, 'right', 15), (refreshLayout, 'bottom', 15)
+        ),
+        attachControl=(
+            (refreshLayout, 'top', 10, BuildWindow.topLyt)
+        )
+    )
 
-def refreshUI(): #Remove refresh confirm layout, get scroll area back, rebuild it if asked or clear it and call action(s)' and file(s)' UIs' build
+def refreshUICheck(): #Check if there is a refreshLayout and manage action cumul. If no cumul returns False, if cumul allowed returns True
+    if BuildWindow.refreshLayout!=None and BuildWindow.refreshMltAllowed==False:
+        if BuildWindow.refreshMltAsked==False:
+            cmds.warning('INFO: You are already waiting the refresh of a previous action. Please click again if you want to cumulate this and next actions before refresh')
+            BuildWindow.refreshMltAsked=True
+            return False
+        else:
+            BuildWindow.refreshMltAllowed=True
+            BuildWindow.refreshMltCount=1
+            cmds.warning('INFO: This action will cumulate before refresh')
+    elif BuildWindow.refreshMltAllowed:
+        BuildWindow.refreshMltCount+=1
+        cmds.warning(f'INFO: This action will cumulate before refresh ({BuildWindow.refreshMltCount})')
+    return True
+
+def clearUI_RefreshUIConfirm(): #Remove the refresh confirm UI and reset confirmation variables
     if BuildWindow.refreshLayout != None: #Remove refresh confirm UI
         cmds.deleteUI(BuildWindow.refreshLayout)
-        BuildWindow.refreshLayout = None
-    cmds.scrollLayout( BuildWindow.scrollAreaLayout, edit=True, manage=True ) #Enable scroll layout
+        BuildWindow.refreshLayout=None
+    BuildWindow.refreshMltAsked=False
+    BuildWindow.refreshMltAllowed=False
+    BuildWindow.refreshMltCount=0
+
+def refreshUI(): #Remove refresh confirm layout, get scroll area back, rebuild it if asked or clear it and call action(s)' and file(s)' UIs' build
+    clearUI_RefreshUIConfirm()
+    cmds.rowLayout( BuildWindow.elementsLayout, edit=True, manage=True )
+    cmds.scrollLayout( BuildWindow.scrollAreaLayout, edit=True, backgroundColor=ThemeColor.scrllArea )
     if BuildWindow.refreshWaitRebuild: #If was stored the ask to rebuild scroll layout, call a scroll layout rebuild and reset the stored ask to rebuild variable
         buildUI_ScrollArea(True)
         BuildWindow.refreshWaitRebuild=False
@@ -497,11 +498,13 @@ def bttn_TopPress(resultType:int): #0 Remove / 1 Set main file / 2 reorder left 
     if idx==-1:
         cmds.warning( 'File index set to 0 on the input field. It needs to be at least 1 to have an effect on a file', n=True )
         return
-    if idx > len(ParallelsCore.files_idx):
-        cmds.warning( f'The file index from the input field ({idx+1}) is bigger than the stored indexes of files ({len(ParallelsCore.files_idx)}). Did you made the impossible ?', n=True )
+    if idx > ParallelsCore.files_filesCount:
+        cmds.warning( f'The file index from the input field ({idx+1}) is bigger than the stored indexes of files ({len(ParallelsCore.files_idx)} - cached: {ParallelsCore.files_filesCount}). Did you made the impossible ?', n=True )
         return
     fileName = ParallelsCore.files_idx[idx] #Get file name according to the index
-
+    rfrshCheck = refreshUICheck()
+    if rfrshCheck==False:
+        return
     if resultType==0: #Call the function according to the parameter
         apply_Remove(fileName)
     elif resultType==1:
@@ -540,7 +543,7 @@ def apply_Reorder(fileName=None, idx=None, left=None): #Apply file reorder and c
     if idx == 0: #Main file
         if left: #Cancel attemp to move the main file more at left
             return
-        elif len(ParallelsCore.files_idx) > 1: #If more than one file, directly call a set as main file for the file at right that will become the main file
+        elif ParallelsCore.files_filesCount > 1: #If more than one file, directly call a set as main file for the file at right that will become the main file
             fileName = ParallelsCore.files_idx[1]
             ParallelsCore.setAsMainFile(fileName,False)
             if BuildWindow.intFieldLock: #If asked, update intField value to match
@@ -566,7 +569,7 @@ def apply_Reorder(fileName=None, idx=None, left=None): #Apply file reorder and c
 def bttn_setIntFieldIDX(): #To be called when changing the int field
     idx = cmds.intField( BuildWindow.intFieldCtrl, query=True, value=True ) #Get index from the UI
     change = False
-    listLen = len(ParallelsCore.files_idx)
+    listLen = ParallelsCore.files_filesCount
     if listLen >= 2 and idx <= listLen: #If more than two files and index under the number of files, store it without issue
         change=True
     elif listLen <= 1: #If number of files under two, check if bigger than number of files and if so set it at the maximum number of files instead
@@ -582,7 +585,7 @@ def bttn_setIntFieldIDX(): #To be called when changing the int field
 
 def bttn_setIntFieldValue(increase=True): #To be called by the increase and decrease file index buttons
     newValue = BuildWindow.intFieldIdx+1 if increase else BuildWindow.intFieldIdx-1
-    if newValue < 0 or newValue > len(ParallelsCore.files_idx): #If trying to go under zero or over the number of files, cancel since the fitting value at min or max should already have been applied
+    if newValue < 0 or newValue > ParallelsCore.files_filesCount: #If trying to go under zero or over the number of files, cancel since the fitting value at min or max should already have been applied
         return
     cmds.intField( BuildWindow.intFieldCtrl, edit=True, value=newValue )
     bttn_setIntFieldIDX()
@@ -616,16 +619,22 @@ def buildUI_SetTheme(): #To be called by the set theme icon
         themeChanged=True
     
     if themeChanged: #If new theme applied, rebuild the window
-        scriptWindow = BuildWindow()
-        BuildWindow.scrollArea_AdaptH = False
-        BuildWindow.scrollArea_AdaptV = False
+        ThemeColor.winWH = cmds.window( BuildWindow.windowName, query=True, widthHeight=True ) #Store the window's size as new size the window will be rebuilt with
+        if BuildWindow.refreshLayout!=None:
+            clearUI_RefreshUIConfirm()
+        intMemory = [ BuildWindow.intFieldMax, BuildWindow.intFieldIdx, BuildWindow.intFieldLock ]
+        scriptWindow = BuildWindow() #Redo the build but I see no need to replace with a new class object via __new__
+        cmds.intField( BuildWindow.intFieldCtrl, edit=True, maxValue=intMemory[0], value=intMemory[1] )
+        if intMemory[2]:
+            cmds.symbolCheckBox( BuildWindow.intFieldLockCtrl, edit=True, value=True )
+            BuildWindow.intFieldLock=True #Should do automatically but in case it doesn't
         buildUI_ActionsFiles() #Rebuid actions' and files' UIs
-
 #endregion - Functions
 
 #--- ---
 
 class ThemeColor():
+    winWH=(1280,750)
     currentTheme = None
     winBack = None
     mainArea = None
@@ -902,7 +911,7 @@ class ProgressWindow():
                 title='HOTKEY PARALLELS', message=f'<font color={ThemeColor.txt_light}>Change progress window settings</font>', messageAlign='center',
                 button=['Force stop',toggle,'Cancel'],
                 defaultButton='Cancel',
-                backgroundColor=ThemeColor.mainArea,
+                backgroundColor=ThemeColor.acColumn,
                 parent=BuildWindow.windowName
             )
         if setting=='Force stop':
@@ -917,29 +926,27 @@ class BuildWindow(object):
     window = None
     windowName = "HotkeyParallels_Window"
     windowTitle = "HOTKEY PARALLELS - 1.0.0 - [Maya 2024+]"
-    windowSize = (1280,750)
-    windowSizable = False
+    windowSizable = True
     keepPos = True #Window will reset it's size but not it's position
     defaultTheme = 'dark'
     ThemeColor.setTheme(defaultTheme)
     
     mainLyt = None
+    topLyt = None
     scrollAreaLayout = None
-    scrollArea_AdaptH = False
-    scrollArea_AdaptV = False
     elementsLayout = None
-    elementsLyt_defHeight = 636
-    elementsLyt_defWidth = 1246
     actionsLayout = None
-    actionsLyt_defHeight = 630
-    actionsLyt_defWidth = 240
     refreshLayout = None
     refreshWaitRebuild = False
+    refreshMltAsked = False
+    refreshMltAllowed = False
+    refreshMltCount = 0
     hideRemoved = False
     topBttn_UseInfo = "\n\n[Drag from the key's UI area with mouse middle button and drop over this button]\nor\n[Set file index on the input field then press this button]"
     intFieldCtrl = None
     intFieldMax = 2
     intFieldIdx = 0
+    intFieldLockCtrl = None
     intFieldLock = False
     
     #--- UI ---
@@ -955,7 +962,7 @@ class BuildWindow(object):
         self.window = cmds.window(
             self.windowName,
             title=self.windowTitle,
-            widthHeight=self.windowSize,
+            widthHeight=ThemeColor.winWH,
             sizeable=self.windowSizable,
             backgroundColor=ThemeColor.winBack
         )
@@ -965,11 +972,9 @@ class BuildWindow(object):
         #UI
         main_formLyt = cmds.formLayout()
         
-        main_mainAreaLyt = cmds.columnLayout(
-            backgroundColor=ThemeColor.mainArea,
-            adjustableColumn=True,
+        main_mainAreaLyt = cmds.formLayout(
             margins=15,
-            rowSpacing=10,
+            backgroundColor=ThemeColor.mainArea,
             parent=main_formLyt
         )
         BuildWindow.mainLyt = main_mainAreaLyt
@@ -979,6 +984,7 @@ class BuildWindow(object):
             numberOfColumns=3,
             parent=main_mainAreaLyt
         )
+        BuildWindow.topLyt = mainArea_topMainLyt
         mainArea_topLyt = cmds.flowLayout(
             height=30,
             columnSpacing=5,
@@ -1079,7 +1085,7 @@ class BuildWindow(object):
             'bttn_setIntFieldValue(False)',
             'INFO: Decrease the file index'
         )
-        cmds.symbolCheckBox( #Lock intField to edited order
+        BuildWindow.intFieldLockCtrl = cmds.symbolCheckBox( #Lock intField to edited order
             annotation="INFO: Update file index field to match the new index when the file at this index changes of order (Toggle)",
             height=20, width=20,
             image='lockGeneric.png', highlightColor=ThemeColor.Bttn,
@@ -1117,7 +1123,7 @@ class BuildWindow(object):
         #endregion - Help line area
 
         #region - Setup end
-        #--- Setup main_formLyt now main elements are generated ---
+        #--- Setup main_formLyt now the main elements are generated ---
         cmds.formLayout(
             main_formLyt, edit=True,
             attachForm=((main_mainAreaLyt, 'top', 0), (main_mainAreaLyt, 'left', 0), (main_mainAreaLyt, 'right', 0),
@@ -1146,6 +1152,8 @@ class ParallelsCore():
     files_actionsMainFile = []
     files_columnsCount = 5 #Not the exact count of files! Extra two when over five
     files_removedCount = 0
+    files_filesCount = 0
+    windowWH=(1280,750)
 
     #--- Functions ---
     def clean_HotkeysChunk(data=''): #Clean an extracted hotkeysChunk because Maya sometimes mixes hotkey lines and other lines
@@ -1168,6 +1176,9 @@ class ParallelsCore():
         return hotkeyData
 
     def importFile(): #Import hotkey file(s) content, extract infos and store them
+        if BuildWindow.refreshLayout!=None:
+            clearUI_RefreshUIConfirm()
+
         fileFilter = '*.mhk'
         newPaths = cmds.fileDialog2(
             caption='Pick Maya hotkey file(s) (.mhk)',
@@ -1190,6 +1201,7 @@ class ParallelsCore():
             ParallelsCore.files_HKData[fileName] = {}
             if ParallelsCore.files_idx.count(fileName) == 0: #Check if the file isn't already on the index list, if so don't add it again
                 ParallelsCore.files_idx.append(fileName)
+                ParallelsCore.files_filesCount += 1
             #Open file until 'with' ends which automatically call .close()
             with open(path, 'r', encoding='utf-8') as f:
                 f_data = f.read()
@@ -1307,7 +1319,7 @@ class ParallelsCore():
                 #Add/Update f_HKData to the files_HKData
                 ParallelsCore.files_HKData[fileName] = f_HKData
             pathIndex+=1
-        newIdxCount = len(ParallelsCore.files_idx)
+        newIdxCount = ParallelsCore.files_filesCount
         if newIdxCount > 2: #If current index count higher than two, set it as int field and stored max value
             cmds.intField( BuildWindow.intFieldCtrl, edit=True, maxValue=newIdxCount )
             BuildWindow.intFieldMax = newIdxCount
@@ -1378,10 +1390,10 @@ class ParallelsCore():
         ParallelsCore.build_RtmCmds()
         #Build scroll area UI to prepare for the actions' and files' UIs
         ProgressWindow.update(f'Building UI',1,None,'',True)
-        columnsAmount = len(ParallelsCore.files_idx)+1 #+1 for the action column
+        columnsAmount = ParallelsCore.files_filesCount+1 #+1 for the action column
         if columnsAmount > 5: #Make sure the rowLayout's numberOfColumns follows the number if more than 5 (arbitrary value)
             ParallelsCore.files_columnsCount = columnsAmount+2 #Keep a safe margin of two
-            buildUI_ScrollArea(True) #Require rebuild, rowLayout's numberOfColumns doesn't support edit
+            buildUI_ScrollArea() #Require reset scrollArea, rowLayout's numberOfColumns doesn't support edit
         else:
             ParallelsCore.files_columnsCount = 5
             clearUI()
@@ -1412,10 +1424,10 @@ class ParallelsCore():
         if ParallelsCore.files_idx.count(fileName) == 0:
             cmds.error(f"Couldn't find file ' {fileName} ' in the data built from imported files", n=True)
         else:
-            idx = ParallelsCore.files_idx.index(fileName) #Get the file index
             mainFile = True if ParallelsCore.files_idx[0]==fileName else False #Get if this is the main file
             ParallelsCore.files_HKData.pop(fileName) #Remove from data dictionnary and index list
             ParallelsCore.files_idx.remove(fileName)
+            ParallelsCore.files_filesCount-=1
             
             #Update files_actionsCount
             aCTotal = ParallelsCore.aCTotalName
@@ -1456,7 +1468,7 @@ class ParallelsCore():
                     break
             
             newIntFMax = BuildWindow.intFieldMax-1 #Update int field UI's max value and stored value in BuildWindow if needed
-            listLen = len(ParallelsCore.files_idx)
+            listLen = ParallelsCore.files_filesCount
             if newIntFMax >= 2:
                 if BuildWindow.intFieldIdx > newIntFMax: #If current int field in on the higher than the new max, update it and the stored value to the new max
                     cmds.intField( BuildWindow.intFieldCtrl, edit=True, value=newIntFMax )
@@ -1484,10 +1496,10 @@ class ParallelsCore():
 
     def setHideRemoved(hide:bool): #Set the hide removed value and update UI accordingly
         BuildWindow.hideRemoved=hide
-        if len(ParallelsCore.files_idx) == 0 or ParallelsCore.files_removedCount == 0 or BuildWindow.refreshLayout != None: #If no UI, no Removed actions UI or already displaying refresh confirmation layout, don't continue
+        if ParallelsCore.files_filesCount == 0 or ParallelsCore.files_removedCount == 0 or BuildWindow.refreshLayout != None: #If no UI, no Removed actions UI or already displaying refresh confirmation layout, don't continue
             return
-        if hide and ParallelsCore.files_removedCount>0: #If going to hide and already has HKP_Removed_ actions on the UI, rebuild scroll area and refresh UI
-            buildUI_ScrollArea(True)
+        if hide and ParallelsCore.files_removedCount>0: #If going to hide and already has HKP_Removed_ actions on the UI, ask rebuild scroll area and refresh UI
+            BuildWindow.refreshWaitRebuild = True
             buildUI_RefreshUIConfirm()
         else: #Else no need to rebuild scroll area, updateUI_ScrollArea() should be enough
             buildUI_RefreshUIConfirm()
@@ -1495,6 +1507,7 @@ class ParallelsCore():
     def reset_Files_HKData(scrollArea=True): #Reset every stored data and rebuild the scroll area UI to prevent it from keeping changes from old UIs (like height or width of the scrollable area)
         ParallelsCore.files_HKData.clear()
         ParallelsCore.files_idx.clear()
+        ParallelsCore.files_filesCount = 0
         ParallelsCore.files_actions.clear()
         ParallelsCore.files_rtmCmds.clear()
         ParallelsCore.files_actionsCount.clear()
@@ -1504,6 +1517,7 @@ class ParallelsCore():
         BuildWindow.intFieldIdx = 0
         BuildWindow.intFieldMax = 2
         cmds.intField( BuildWindow.intFieldCtrl, edit=True, value=0, maxValue=2 )
+        clearUI_RefreshUIConfirm()
         if scrollArea:
             buildUI_ScrollArea(True)
 
