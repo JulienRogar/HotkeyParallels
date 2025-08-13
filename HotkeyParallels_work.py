@@ -1,7 +1,7 @@
 import maya.cmds as cmds # type: ignore
 
 # Hotkey Parallels
-# Maya 2024 | 1.0.1
+# Maya 2024 | 1.0.1b
 # Julien Rogar ( https://github.com/JulienRogar/HotkeyParallels )
 
 #--- ---
@@ -925,7 +925,7 @@ class BuildWindow(object):
     #--- Variables ---
     window = None
     windowName = "HotkeyParallels_Window"
-    windowTitle = "HOTKEY PARALLELS - 1.0.0 - [Maya 2024+]"
+    windowTitle = "HOTKEY PARALLELS - 1.0.1 - [Maya 2024+]"
     windowSizable = True
     keepPos = True #Window will reset it's size but not it's position
     defaultTheme = 'dark'
