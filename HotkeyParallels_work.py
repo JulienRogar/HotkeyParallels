@@ -2,7 +2,7 @@ import os
 import maya.cmds as cmds # type: ignore
 
 #Hotkey Parallels
-# Maya 2024 | 1.0.0
+# Maya 2024 | 1.0.0b
 # Julien Rogar ( https://github.com/JulienRogar/HotkeyParallels )
 
 #--- ---
