@@ -1,7 +1,7 @@
 import maya.cmds as cmds # type: ignore
 
 # Hotkey Parallels
-# Maya 2024 | 1.0.1b
+# Maya 2024 | 1.0.1c
 # Julien Rogar ( https://github.com/JulienRogar/HotkeyParallels )
 
 #--- ---
@@ -153,7 +153,7 @@ def buildUI_File( label='File', data={}, width=10, parent=None, fileIndex=-1 ): 
     )
     #File title
     cmds.text(
-        label=f'<font size=4><font color={ThemeColor.txt_light}>{label}</font>',
+        label=f'<font size=4><font color={ThemeColor.txt_light}>{label}</font>', annotation=f'INFO: File {label} [Index {fileIndex+1}]',
         align='center',
         font='boldLabelFont',
         height=31,
