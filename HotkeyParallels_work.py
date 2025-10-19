@@ -1,7 +1,7 @@
 import maya.cmds as cmds # type: ignore
 
 # Hotkey Parallels
-# Maya 2024 | 1.0.1c
+# Maya 2024 | 1.0.2
 # Julien Rogar ( https://github.com/JulienRogar/HotkeyParallels )
 
 #--- ---
@@ -162,13 +162,15 @@ def buildUI_File( label='File', data={}, width=10, parent=None, fileIndex=-1 ): 
         backgroundColor=ThemeColor.fileName,
         parent=fileLyt
     )
-    cmds.separator( height=13, width=width, style='none', parent=fileLyt )
+    sep = cmds.separator( height=13, width=width, style='none', parent=fileLyt )
     #Keys
-    keyWidth = width+4
     actions = ParallelsCore.files_actions
     isMain = True if fileIndex==0 else False
     doRmvHide = True if BuildWindow.hideRemoved else False
     mainFileData = ParallelsCore.files_HKData[ParallelsCore.files_idx[0]]
+
+    if isMain: #If main, reference column layout control for reference file column highlight toggle
+        BuildWindow.refFileClmn = fileLyt
 
     for action in actions: #actions is in the order so use it to generate keys in matching order
         if doRmvHide and action.count('HKP_Removed_'): #If should hide Removed and the actions is one, skip it
@@ -179,9 +181,12 @@ def buildUI_File( label='File', data={}, width=10, parent=None, fileIndex=-1 ): 
         if fullKey[1]: #If data has been found for it, extract and compare it then build UI
             keyData = fullKey[2]
             keyDataExtra = keyData[1]
-            buildUI_Key( keyWidth, fileLyt, keyData[0], keyDataExtra[0], keyDataExtra[1], keyDataExtra[2], keyDataExtra[3], status, isMain )
+            buildUI_Key( width, fileLyt, keyData[0], keyDataExtra[0], keyDataExtra[1], keyDataExtra[2], keyDataExtra[3], status, isMain )
         else: #If didn't found data for it, compare and build UI
-            buildUI_Key( keyWidth, fileLyt, '', False, False, False, False, status, isMain )
+            buildUI_Key( width, fileLyt, '', False, False, False, False, status, isMain )
+    
+    if isMain and BuildWindow.hlghtRefClmn:
+        apply_HlghtRefClmn() #Apply reference file column highlight (after so everything is setup correctly on default background color)
 
 def get_HotkeyData(action='', data={}, returnShort=False): #Extract info from an action in data dictionnary and returns with to compare or with all useful infos to also build UI
     action = f'{action}_HKData'
@@ -622,13 +627,47 @@ def buildUI_SetTheme(): #To be called by the set theme icon
         ThemeColor.winWH = cmds.window( BuildWindow.windowName, query=True, widthHeight=True ) #Store the window's size as new size the window will be rebuilt with
         if BuildWindow.refreshLayout!=None:
             clearUI_RefreshUIConfirm()
-        intMemory = [ BuildWindow.intFieldMax, BuildWindow.intFieldIdx, BuildWindow.intFieldLock ]
+        intMemory = [ BuildWindow.hlghtRefClmn, BuildWindow.hideRemoved, BuildWindow.intFieldMax, BuildWindow.intFieldIdx, BuildWindow.intFieldLock ] #Store UI values to reapply once theme changed and window rebuilt
         scriptWindow = BuildWindow() #Redo the build but I see no need to replace with a new class object via __new__
-        cmds.intField( BuildWindow.intFieldCtrl, edit=True, maxValue=intMemory[0], value=intMemory[1] )
-        if intMemory[2]:
+        if intMemory[0]: #Reapply Highlight ref file column's toggle value
+            cmds.symbolCheckBox( BuildWindow.hlghtRefClmnCtrl, edit=True, value=True )
+            BuildWindow.hlghtRefClmn=True
+        if intMemory[1]: #Reapply Hide removed keys' toggle value
+            cmds.symbolCheckBox( BuildWindow.hideRemovedCtrl, edit=True, value=True )
+            BuildWindow.hideRemoved=True
+        cmds.intField( BuildWindow.intFieldCtrl, edit=True, maxValue=intMemory[2], value=intMemory[3] ) #Reapply File index's field value
+        if intMemory[4]: #Reapply File index lock's toggle value
             cmds.symbolCheckBox( BuildWindow.intFieldLockCtrl, edit=True, value=True )
             BuildWindow.intFieldLock=True #Should do automatically but in case it doesn't
         buildUI_ActionsFiles() #Rebuid actions' and files' UIs
+
+def apply_HlghtRefClmn(): #Apply highlight toggle of the reference file's column
+    if ParallelsCore.files_filesCount != 0: #Check there are files
+        bckColor = ThemeColor.fileColumnHlght if BuildWindow.hlghtRefClmn else ThemeColor.fileColumn #Get the color according to the toggle state
+        cmds.columnLayout( BuildWindow.refFileClmn, edit=True, backgroundColor=bckColor ) #Apply to the column
+        
+        clmnChildren = cmds.columnLayout( BuildWindow.refFileClmn, query=True, childArray=True ) #Get column children to filter separators (which background color and visibility don't update automatically)
+        sepToUpdate = []
+        sepIndex = 0
+        cActionSepIndex = 1
+        for child in clmnChildren:
+            if 'separator' in child: #Filter if it is a separator. Results will be on another list to prevent issues when removing items of a list used in the same for
+                toAdd = False
+                if sepIndex < 3 and sepIndex != 2: #There is an extra separator before the first one from an action line, which shouldn't be changed. So check if it isn't the second nor above 3 which would be on another action line
+                    toAdd =True
+                else: #Other action lines are always the same so easier to split, they have three separators and only the first shouldn't be changed. cActionSepIndex will go from 1 to 3 accordingly and separator will be added if not 1
+                    if cActionSepIndex != 1:
+                        toAdd = True
+                        if cActionSepIndex == 3: #If 3, return to 0 so it loops on 1 with the += 1 right after
+                            cActionSepIndex = 0
+                    cActionSepIndex += 1
+                
+                if toAdd: #If child is right a separator and one to change, add it to the list
+                    sepToUpdate.append(child)
+                sepIndex += 1
+        
+        for child in sepToUpdate: #Apply to separators in the list
+            cmds.separator( child, edit=True, backgroundColor=bckColor, enableBackground=BuildWindow.hlghtRefClmn )
 #endregion - Functions
 
 #--- ---
@@ -646,6 +685,7 @@ class ThemeColor():
     acColumn = None
     acSeprator = None
     fileColumn = None
+    fileColumnHlght = None
     fileSeparator = None
     fileName = None
     keyBack = None
@@ -680,6 +720,7 @@ class ThemeColor():
             'acColumn':[0.26,0.26,0.26],
             'acSeprator':[0.19,0.19,0.19],
             'fileColumn':[0.23,0.23,0.23],
+            'fileColumnHlght':[0.355,0.355,0.355],
             'fileSeparator':[0.15,0.15,0.15],
             'fileName':[0.3,0.3,0.3],
             'keyBack':[0.3,0.3,0.3],
@@ -711,6 +752,7 @@ class ThemeColor():
             'acColumn':[0.88,0.88,0.88],
             'acSeprator':[0.77,0.77,0.77],
             'fileColumn':[0.9,0.9,0.9],
+            'fileColumnHlght':[0.825,0.825,0.825],
             'fileSeparator':[0.78,0.78,0.78],
             'fileName':[0.95,0.95,0.95],
             'keyBack':[0.95,0.95,0.95],
@@ -742,6 +784,7 @@ class ThemeColor():
             'acColumn':[0.15,0.15,0.15],
             'acSeprator':[0.19,0.19,0.19],
             'fileColumn':[0.14,0.14,0.14],
+            'fileColumnHlght':[0.23,0.23,0.23],
             'fileSeparator':[0.2,0.2,0.2],
             'fileName':[0.11,0.11,0.11],
             'keyBack':[0.12,0.12,0.12],
@@ -773,6 +816,7 @@ class ThemeColor():
             'acColumn':[0.55,0.55,0.55],
             'acSeprator':[0.77,0.77,0.77],
             'fileColumn':[0.4,0.4,0.4],
+            'fileColumnHlght':[0.295,0.295,0.295],
             'fileSeparator':[0.2,0.2,0.2],
             'fileName':[0.55,0.55,0.55],
             'keyBack':[0.5,0.5,0.5],
@@ -808,6 +852,7 @@ class ThemeColor():
         ThemeColor.acColumn = theme['acColumn']
         ThemeColor.acSeprator = theme['acSeprator']
         ThemeColor.fileColumn = theme['fileColumn']
+        ThemeColor.fileColumnHlght = theme['fileColumnHlght']
         ThemeColor.fileSeparator = theme['fileSeparator']
         ThemeColor.fileName = theme['fileName']
         ThemeColor.keyBack = theme['keyBack']
@@ -925,23 +970,26 @@ class BuildWindow(object):
     #--- Variables ---
     window = None
     windowName = "HotkeyParallels_Window"
-    windowTitle = "HOTKEY PARALLELS - 1.0.1 - [Maya 2024+]"
+    windowTitle = "HOTKEY PARALLELS - 1.0.2 - [Maya 2024+]"
     windowSizable = True
     keepPos = True #Window will reset it's size but not it's position
-    defaultTheme = 'dark'
-    ThemeColor.setTheme(defaultTheme)
+    ThemeColor.setTheme('dark')
     
     mainLyt = None
     topLyt = None
     scrollAreaLayout = None
     elementsLayout = None
     actionsLayout = None
+    refFileClmn = None
     refreshLayout = None
     refreshWaitRebuild = False
     refreshMltAsked = False
     refreshMltAllowed = False
     refreshMltCount = 0
+    hideRemovedCtrl = None
     hideRemoved = False
+    hlghtRefClmnCtrl = None
+    hlghtRefClmn = False
     topBttn_UseInfo = "\n\n[Drag from the key's UI area with mouse middle button and drop over this button]\nor\n[Set file index on the input field then press this button]"
     intFieldCtrl = None
     intFieldMax = 2
@@ -1009,13 +1057,22 @@ class BuildWindow(object):
         cmds.separator( height=30, width=2, style='none', parent=mainArea_topLyt )
         cmds.separator( height=30, width=2, style='none', backgroundColor=ThemeColor.topSeparator, parent=mainArea_topLyt )
         cmds.separator( height=30, width=2, style='none', parent=mainArea_topLyt )
-        cmds.symbolCheckBox( #Toggle hide removed keys
+        hlghtRefClmCtrl = cmds.symbolCheckBox( #Toggle reference file column highlight
+            annotation='INFO: Highlight reference file column (Toggle)',
+            height=30, width=30,
+            image='hsClearView.png', highlightColor=ThemeColor.Bttn,
+            onCommand='ParallelsCore.setHighlightRefClmn(True)', offCommand='ParallelsCore.setHighlightRefClmn(False)',
+            parent=mainArea_topLyt
+        )
+        BuildWindow.hlghtRefClmnCtrl = hlghtRefClmCtrl
+        hideRemovedCtrl = cmds.symbolCheckBox( #Toggle hide removed keys
             annotation='INFO: Hide removed keys (Toggle)',
             height=30, width=30,
             image='Bool_Hidden.png', highlightColor=ThemeColor.Bttn,
             onCommand='ParallelsCore.setHideRemoved(True)', offCommand='ParallelsCore.setHideRemoved(False)',
             parent=mainArea_topLyt
         )
+        BuildWindow.hideRemovedCtrl = hideRemovedCtrl
         cmds.separator( height=30, width=2, style='none', parent=mainArea_topLyt )
         cmds.separator( height=30, width=2, style='none', backgroundColor=ThemeColor.topSeparator, parent=mainArea_topLyt )
         cmds.separator( height=30, width=2, style='none', parent=mainArea_topLyt )
@@ -1502,6 +1559,12 @@ class ParallelsCore():
             buildUI_RefreshUIConfirm()
         else: #Else no need to rebuild scroll area, updateUI_ScrollArea() should be enough
             buildUI_RefreshUIConfirm()
+
+    def setHighlightRefClmn(status:bool): #Set the value of the reference file highlight and update UI accordingly
+        print(f'Setting highlight to {status}...')
+        BuildWindow.hlghtRefClmn = status
+        if ParallelsCore.files_filesCount > 0:
+            apply_HlghtRefClmn()
 
     def reset_Files_HKData(scrollArea=True): #Reset every stored data and rebuild the scroll area UI to prevent it from keeping changes from old UIs (like height or width of the scrollable area)
         ParallelsCore.files_HKData.clear()
